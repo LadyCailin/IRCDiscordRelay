@@ -8,6 +8,23 @@
 	requiredExtensions: Core, CHDiscord, CHIRC;
 >
 
+proc _getAPIObject() {
+	@lastUpdated = import('api_last_updated', 0);
+	if(@lastUpdated + (1000 * 60 * 10) < time()) {
+		msg('API is stale, updating');
+		http_request('https://methodscript.com/docs/' . extension_info('Core')['version'] . '/api.json', array(
+			blocking: true,
+			success: closure(@data) {
+				@data = json_decode(@data['body']);
+				export('api_data', @data);
+				export('api_last_updated', time());
+				msg('API Updated in memory');
+			}
+		));
+	}
+	return(import('api_data'));
+}
+
 /**
  * Puts a non-printing space between each letter, so that this will look normal, but not ping the same user that just talked, if they
  * are in both IRC and discord, and have the same user name.
@@ -37,19 +54,60 @@ proc _handleCommand(@line, @source) {
 		'api': closure(@args) {
 			msg(typeof(@args) . ' ' . length(@args) . ' ' . @args);
 			if(length(@args) == 1) {
-				return("~api <function>");
+				return("~api <element>");
 			}
 			string @f = @args[1];
 			always_trace(@f);
-			string @type = reflect_docs(@f, 'type');
-			string @return = reflect_docs(@f, 'return');
-			string @a = reflect_docs(@f, 'args');
-			string @description = reflect_docs(@f, 'description');
-			string @ret = "@type @f(@a);\n";
-			if(length(@description) > 512) {
-				@description = @description[0..512] . "...";
+			@api = _getAPIObject();
+			@show = associative_array();
+			foreach(@type: @innerAPI in @api) {
+				if(!(@type == 'events' || @type == 'functions' || @type == 'keywords' || @type == 'objects')) {
+					// Whitelist certain keys
+					continue();
+				}
+				if(array_index_exists(@innerAPI, @f)) {
+					@show[@type] = @f;
+				}
 			}
-			return(@ret . @description . '\nhttps://methodscript.com/docs/' . extension_info('Core')['version'] . '/API/functions/' . @f . '.html');
+			foreach(@type: @name in @show) {
+				@value = @api[@type][@f];
+				switch(@type) {
+					case 'keywords':
+						return("@f keyword: " . @value['docs']);
+					case 'objects':
+						@docs = string(@value['docs']);
+						@interfaces = @value['interfaces'];
+						@superclasses = @value['superclasses'];
+						if(length(@interfaces) > 0) {
+							@interfaces = "implements " . array_implode(@interfaces, ', ');
+						} else {
+							@interfaces = "";
+						}
+						if(length(@superclasses) > 0) {
+							@superclasses = "extends " . array_implode(@superclasses, ', ');
+						} else {
+							@superclasses = "";
+						}
+						return(trim("class @f @superclasses @interfaces") . "\n@docs");
+					case 'events':
+						@desc = @value['desc'];
+						@eventData = string(@value['eventData']);
+						@mutability = string(@value['mutability']);
+						@prefilters = string(@value['prefilters']);
+						return("@f\n@desc\nEvent Object: @eventData\nMutable Fields: @mutability\nPrefilters: @prefilters");
+					case 'functions':
+						@type = @value['ret'];
+						@a = @value['args'];
+						@description = @value['desc'];
+						@ret = "@type @f(@a);\n";
+						if(length(@description) > 512) {
+							@description = @description[0..512] . '...';
+						}
+						return(@ret . @description . '\nhttps://methodscript.com/docs/' . extension_info('Core')['version'] . '/API/functions/' . @f . '.html');
+				}
+			} else {
+				return("Could not find anything in the API with that name.");
+			}
 		}
 	);
 	array @args = parse_args(@line, true);
