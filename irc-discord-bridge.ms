@@ -69,44 +69,53 @@ proc _handleCommand(@line, @source) {
 					@show[@type] = @f;
 				}
 			}
+			array @output = array();
 			foreach(@type: @name in @show) {
-				@value = @api[@type][@f];
-				switch(@type) {
-					case 'keywords':
-						return("@f keyword: " . @value['docs']);
-					case 'objects':
-						@docs = string(@value['docs']);
-						@interfaces = @value['interfaces'];
-						@superclasses = @value['superclasses'];
-						if(length(@interfaces) > 0) {
-							@interfaces = "implements " . array_implode(@interfaces, ', ');
-						} else {
-							@interfaces = "";
-						}
-						if(length(@superclasses) > 0) {
-							@superclasses = "extends " . array_implode(@superclasses, ', ');
-						} else {
-							@superclasses = "";
-						}
-						return(trim("class @f @superclasses @interfaces") . "\n@docs");
-					case 'events':
-						@desc = @value['desc'];
-						@eventData = string(@value['eventData']);
-						@mutability = string(@value['mutability']);
-						@prefilters = string(@value['prefilters']);
-						return("@f\n@desc\nEvent Object: @eventData\nMutable Fields: @mutability\nPrefilters: @prefilters");
-					case 'functions':
-						@type = @value['ret'];
-						@a = @value['args'];
-						@description = @value['desc'];
-						@ret = "@type @f(@a);\n";
-						if(length(@description) > 512) {
-							@description = @description[0..512] . '...';
-						}
-						return(@ret . @description . '\nhttps://methodscript.com/docs/' . extension_info('Core')['version'] . '/API/functions/' . @f . '.html');
-				}
+				@output[] = execute(closure() {
+					@value = @api[@type][@f];
+					switch(@type) {
+						case 'keywords':
+							return("@f keyword: " . @value['docs']);
+						case 'objects':
+							@docs = string(@value['docs']);
+							@interfaces = @value['interfaces'];
+							@superclasses = @value['superclasses'];
+							if(length(@interfaces) > 0) {
+								@interfaces = "implements " . array_implode(@interfaces, ', ');
+							} else {
+								@interfaces = "";
+							}
+							if(length(@superclasses) > 0) {
+								@superclasses = "extends " . array_implode(@superclasses, ', ');
+							} else {
+								@superclasses = "";
+							}
+							return(trim("class @f @superclasses @interfaces") . "\n@docs");
+						case 'events':
+							@desc = @value['desc'];
+							@eventData = string(@value['eventData']);
+							@mutability = string(@value['mutability']);
+							@prefilters = string(@value['prefilters']);
+							return("@f\n@desc\nEvent Object: @eventData\nMutable Fields: @mutability\nPrefilters: @prefilters");
+						case 'functions':
+							@type = @value['ret'];
+							@a = @value['args'];
+							@description = @value['desc'];
+							@ret = "@type @f(@a);\n";
+							if(length(@description) > 512) {
+								@description = @description[0..512] . '...';
+							}
+							return(@ret . @description . '\nhttps://methodscript.com/docs/' . extension_info('Core')['version'] . '/API/functions/' . @f . '.html');
+					}
+				});
 			} else {
 				return("Could not find anything in the API with that name.");
+			}
+			if(length(@output) > 1) {
+				@preamble = "@f can be found as multiple types of things:\n";
+				return(@preamble . array_implode(@output, '\n'));	
+			} else {
+				return(@output[0]);
 			}
 		}
 	);
