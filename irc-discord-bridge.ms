@@ -46,8 +46,11 @@ proc _isCommand(@line) {
 
 /**
  * Assumes the line is a command, and handles it accordingly.
+ * If @discordChannel is null, then it is assumed to be from the general/IRC channel, and is handled appropriately, otherwise,
+ * if not null, the response will only go to the given discord channel. If both source and discordChannel are null, the response
+ * is simply returned as a string, and nothing is sent.
  */
-proc _handleCommand(@line, @source) {
+proc _handleCommand(@line, @source, @discordChannel) {
 	@line = substr(@line, 1);
 	array @commands = array(
 		'ping': closure(){ return('pong'); },
@@ -117,16 +120,28 @@ proc _handleCommand(@line, @source) {
 			} else {
 				return(@output[0]);
 			}
-		}
+		},
+		'help': closure(){ return("Current commands: ~ping, ~api <thing>") }
 	);
 	array @args = parse_args(@line, true);
 	if(array_index_exists(@commands, @args[0])) {
 		string @ret = execute(@args, @source, @commands[@args[0]]);
+		if(@source == null && @discordChannel == null, return(@ret));
 		if(@ret != null) {
-			_broadcastAll(@ret, 'general');
+			if(@discordChannel == null) {
+				_broadcastAll(@ret, 'general');
+			} else {
+				_broadcastDiscord(@ret, @discordChannel);
+			}
 		}
 	} else {
-		_broadcastAll("Could not find command \"@{args[0]}\"", 'general');
+		@notFound = "Could not find command \"@{args[0]}\", try ~help";
+		if(@source == null && @discordChannel == null, return(@notFound));
+		if(@discordChannel == null) {
+			_broadcastAll(@notFound, 'general');
+		} else {
+			_broadcastDiscord(@notFound, @discordChannel);
+		}
 	} 
 }
 
@@ -175,15 +190,28 @@ execute(closure(){
     }
 
     bind('discord_message_received', null, null, @event) {
+      string @nick = @event['nickname'];
+      string @message = @event['message'];
       if(@event['channel'] == 'general') {
-        string @nick = @event['nickname'];
-        string @message = @event['message'];
 	msg('Discord: ' . @event);
 	_broadcastIRC("[D]"._processNick(@nick).": @message");
 	if(_isCommand(@message)) {
 		_handleCommand(@message, 'discord');
 	}
+      } else {
+        if(_isCommand(@message)) {
+           _handleCommand(@message, 'discord', @event['channel']);
+        }
       }
     }
+
+	bind('discord_private_message_received', null, null, @event) {
+		int @userid = @event['userid'];
+		string @username = @event['username'];
+		string @message = @event['message'];
+		string @resp = _handleCommand(@message, null, null);
+		msg("Got message from @userid:@username: @message");
+		discord_private_message(@userid, @resp);
+	}
   });
 });
