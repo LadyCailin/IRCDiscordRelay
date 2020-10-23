@@ -129,16 +129,16 @@ proc _handleCommand(@line, @source, @discordChannel) {
 		string @ret = execute(@args, @source, @commands[@args[0]]);
 		if(@source == null && @discordChannel == null, return(@ret));
 		if(@ret != null) {
-			if(@discordChannel == null) {
+			if(@discordChannel == null || @discordChannel == '') {
 				_broadcastAll(@ret, 'general');
 			} else {
 				_broadcastDiscord(@ret, @discordChannel);
 			}
 		}
 	} else {
-		@notFound = "Could not find command \"@{args[0]}\", try ~help";
+		@notFound = "Could not find command " . @args[0] . ", try ~help";
 		if(@source == null && @discordChannel == null, return(@notFound));
-		if(@discordChannel == null) {
+		if(@discordChannel == null || @discordChannel == '') {
 			_broadcastAll(@notFound, 'general');
 		} else {
 			_broadcastDiscord(@notFound, @discordChannel);
