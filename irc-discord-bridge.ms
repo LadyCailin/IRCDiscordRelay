@@ -121,7 +121,8 @@ proc _handleCommand(@line, @source, @discordChannel) {
 				return(@output[0]);
 			}
 		},
-		'help': closure(){ return("Current commands: ~ping, ~api <thing>") }
+		'help': closure(){ return("Current commands: ~ping, ~api <thing>") },
+		'omw': closure(){ return("https://tenor.com/view/on-my-way-running-coming-going-forrest-gump-gif-10287652") }
 	);
 	array @args = parse_args(@line, true);
 	if(array_index_exists(@commands, @args[0])) {
